@@ -1,20 +1,27 @@
 package com.example.weatherapp;
 
-import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.content.Intent;
 import android.view.Menu;
 import android.view.MenuItem;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.viewpager2.widget.ViewPager2;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.journeyapps.barcodescanner.ScanOptions;
+import com.journeyapps.barcodescanner.ScanContract;
 
 public class MainActivity extends AppCompatActivity {
     private ViewPager2 viewPager;
     private TabLayout tabLayout;
     private FloatingActionButton fabScan;
+    // Declare the ActivityResultLauncher for the barcode scanning
+    private ActivityResultLauncher<ScanOptions> barcodeLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,17 +34,35 @@ public class MainActivity extends AppCompatActivity {
         tabLayout = findViewById(R.id.tabLayout);
         fabScan = findViewById(R.id.fabScan);
 
+        // Initialize the barcode scanner launcher
+        barcodeLauncher = registerForActivityResult(new ScanContract(), result -> {
+            if (result.getContents() != null) {
+                String scanned = result.getContents(); // ex.: "São Paulo,BR"
+                // Save the scanned city code in SharedPreferences
+                SharedPreferences preferences = getSharedPreferences("app_prefs", MODE_PRIVATE);
+                preferences.edit().putString("city_code", scanned).apply();
+
+                // Recreate the activity to refresh the fragments with the new data
+                recreate();
+            }
+        });
+
+        // Set up ViewPager and TabLayout
         ViewPagerAdapter adapter = new ViewPagerAdapter(this);
         viewPager.setAdapter(adapter);
-
         new TabLayoutMediator(tabLayout, viewPager,
                 (tab, position) -> tab.setText(position == 0 ? "Previsão" : "Mapa")
         ).attach();
 
+        // Set up FloatingActionButton click to launch the barcode scanner
         fabScan.setOnClickListener(v -> {
-            // inicia scanner ZXing (iremos implementar abaixo)
-            Intent intent = new Intent(this, com.journeyapps.barcodescanner.CaptureActivity.class);
-            startActivityForResult(intent, 1001);
+            // Create scan options for QR code scanning
+            ScanOptions options = new ScanOptions();
+            options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
+            options.setPrompt("Escaneie o QR com o código da cidade (ex.: São Paulo,BR)");
+            options.setBeepEnabled(true);
+            // Launch the scanner
+            barcodeLauncher.launch(options);
         });
     }
 
@@ -54,13 +79,5 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return super.onOptionsItemSelected(item);
-    }
-
-    // resultado do scanner (quando usar IntentIntegrator, adapte)
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        // A implementação de ZXing usada aqui pode retornar via Intent extras
-        // iremos implementar a integração específica depois
     }
 }
